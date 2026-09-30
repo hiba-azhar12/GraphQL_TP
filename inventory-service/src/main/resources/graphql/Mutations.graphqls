@@ -1,3 +1,5 @@
-type Mutation{
+type Mutation {
+    saveVideo(video: VideoRequest): Video
+    saveCreator(creator: CreatorRequest): Creator
     saveProduit(produitDtoInput: ProduitDtoInput): ProduitDto
 }

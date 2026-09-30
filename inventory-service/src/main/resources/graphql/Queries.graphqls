@@ -1,5 +1,7 @@
-type Query{
-    getProduitById(id: Float) : ProduitDto
+type Query {
+    videoList: [Video]
+    creatorById(id: Float): Creator
+    getProduitById(id: Float): ProduitDto
     getProduitByName(name: String): ProduitDto
     getAllProduits: [ProduitDto]
 }
