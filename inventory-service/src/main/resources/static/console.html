@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Console GraphQL</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; background: #f5f5f5; }
+  h2 { margin: 0 0 8px; }
+  .row { display: flex; gap: 12px; }
+  .col { flex: 1; min-width: 0; }
+  textarea, pre { width: 100%; box-sizing: border-box; height: 380px; font-family: monospace; font-size: 14px; padding: 8px; border: 1px solid #bbb; background: #fff; overflow: auto; }
+  pre { margin: 0; white-space: pre-wrap; }
+  button { padding: 6px 12px; margin: 6px 6px 6px 0; cursor: pointer; }
+  .run { background: #e10098; color: #fff; border: 0; font-weight: bold; }
+  .ex button { background: #fff; border: 1px solid #999; }
+</style>
+</head>
+<body>
+<h2>Console GraphQL</h2>
+<div class="ex">
+  Exemples :
+  <button onclick="ex(0)">videoList</button>
+  <button onclick="ex(1)">creatorById (erreur)</button>
+  <button onclick="ex(2)">saveCreator</button>
+  <button onclick="ex(3)">saveVideo</button>
+  <button onclick="ex(4)">subscription</button>
+</div>
+<button class="run" onclick="run()">Exécuter</button>
+<button onclick="stopSub()">Arreter la subscription</button>
+<div class="row">
+  <div class="col"><textarea id="query"></textarea></div>
+  <div class="col"><pre id="out">Résultat ici...</pre></div>
+</div>
+
+<script>
+const EXAMPLES = [
+`{
+  videoList {
+    id
+    name
+    datePublication
+    creator { name }
+  }
+}`,
+`{
+  creatorById(id: 22) {
+    name
+  }
+}`,
+`mutation {
+  saveCreator(creator: { name: "sara", email: "sara@gmail.com" }) {
+    id
+    name
+  }
+}`,
+`mutation {
+  saveVideo(video: {
+    name: "graph Ql tuto",
+    url: "test url",
+    description: "test description",
+    datePublication: "28/11/2023",
+    creator: { name: "badr", email: "x@gmail.com" }
+  }) {
+    id
+    name
+  }
+}`,
+`subscription {
+  notifyVideoChange {
+    id
+    name
+    creator { name }
+  }
+}`
+];
+
+const q = document.getElementById('query');
+const out = document.getElementById('out');
+let socket = null;
+q.value = EXAMPLES[0];
+
+function ex(i) { q.value = EXAMPLES[i]; }
+function show(obj) { out.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); }
+
+function stopSub() {
+  if (socket) { socket.close(); socket = null; out.textContent += '\n--- subscription arrêtée ---'; }
+}
+
+async function run() {
+  stopSub();
+  const query = q.value.trim();
+  if (query.startsWith('subscription')) { return subscribe(query); }
+  out.textContent = 'Chargement...';
+  try {
+    const res = await fetch('/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query })
+    });
+    show(await res.json());
+  } catch (e) {
+    show('Erreur : ' + e);
+  }
+}
+
+function subscribe(query) {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  out.textContent = 'Connexion WebSocket...\n';
+  socket = new WebSocket(proto + '//' + location.host + '/graphql', 'graphql-transport-ws');
+  socket.onopen = () => socket.send(JSON.stringify({ type: 'connection_init' }));
+  socket.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'connection_ack') {
+      out.textContent += 'Connecté. En attente des données...\n\n';
+      socket.send(JSON.stringify({ id: '1', type: 'subscribe', payload: { query: query } }));
+    } else if (msg.type === 'next') {
+      out.textContent += JSON.stringify(msg.payload, null, 2) + '\n';
+      out.scrollTop = out.scrollHeight;
+    } else if (msg.type === 'error') {
+      out.textContent += 'Erreur : ' + JSON.stringify(msg.payload, null, 2) + '\n';
+    } else if (msg.type === 'ping') {
+      socket.send(JSON.stringify({ type: 'pong' }));
+    }
+  };
+  socket.onerror = () => { out.textContent += 'Erreur WebSocket.\n'; };
+}
+
+q.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { run(); }
+});
+</script>
+</body>
+</html>

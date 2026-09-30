@@ -9,9 +9,13 @@ import ma.xproce.inventoryservice.service.VideoManager;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.graphql.data.method.annotation.SubscriptionMapping;
 import org.springframework.stereotype.Controller;
+import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 
 @Controller
 public class VideoGraphQlController {
@@ -24,6 +28,7 @@ public class VideoGraphQlController {
         this.videoManager = videoManager;
     }
 
+    
     @QueryMapping
     public List<VideoDto> videoList() {
         return videoManager.getAllVideos();
@@ -34,6 +39,7 @@ public class VideoGraphQlController {
         return creatorManager.findById(id);
     }
 
+    
     @MutationMapping
     public CreatorDto saveCreator(@Argument CreatorRequest creator) {
         return creatorManager.saveCreator(creator);
@@ -42,5 +48,19 @@ public class VideoGraphQlController {
     @MutationMapping
     public VideoDto saveVideo(@Argument VideoRequest video) {
         return videoManager.saveVideo(video);
+    }
+
+   
+    @SubscriptionMapping
+    public Flux<VideoDto> notifyVideoChange() {
+        return Flux.interval(Duration.ofSeconds(1))
+                .map(tick -> {
+                    CreatorRequest request = CreatorRequest.builder()
+                            .name("x" + new Random().nextInt(1000))
+                            .email("x@gmail.com")
+                            .build();
+                    CreatorDto creator = creatorManager.saveCreator(request);
+                    return videoManager.changeCreator(1L, creator.getId());
+                });
     }
 }
